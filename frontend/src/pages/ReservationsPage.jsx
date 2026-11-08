@@ -106,7 +106,12 @@ export default function ReservationsPage() {
   return (
     <section>
       <div className="page-header">
-        <h1>Reservas</h1>
+        <div>
+          <span className="page-kicker" aria-hidden="true">
+            Room Bookings
+          </span>
+          <h1>Reservas</h1>
+        </div>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(null)}>
           + Nova reserva
         </button>

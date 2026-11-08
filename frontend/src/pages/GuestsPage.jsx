@@ -44,7 +44,12 @@ export default function GuestsPage() {
   return (
     <section>
       <div className="page-header">
-        <h1>Hóspedes</h1>
+        <div>
+          <span className="page-kicker" aria-hidden="true">
+            Guest Register
+          </span>
+          <h1>Hóspedes</h1>
+        </div>
         <button type="button" className="btn btn-primary" onClick={() => setEditing(null)}>
           + Novo hóspede
         </button>

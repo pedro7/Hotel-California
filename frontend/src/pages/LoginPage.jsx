@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError, errorMessage } from '../api/client'
 import { useAuth } from '../auth/useAuth'
+import NeonSign from '../components/NeonSign'
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth()
@@ -37,8 +38,16 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
+      <div className="rain" aria-hidden="true" />
+      <NeonSign />
+      <p className="lyric" aria-hidden="true">
+        “You can check out any time you like, but you can never leave.”
+      </p>
       <form className="card login-card" onSubmit={handleSubmit}>
-        <h1>Hotel</h1>
+        <div className="card-ribbon" aria-hidden="true">
+          Front Desk · Recepção
+        </div>
+        <h1>Livro de Registro</h1>
         <p className="muted">Acesso restrito aos atendentes.</p>
 
         <label>
@@ -71,6 +80,9 @@ export default function LoginPage() {
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Entrando…' : 'Entrar'}
         </button>
+        <p className="card-footnote" aria-hidden="true">
+          Hóspedes registrados: ∞ · Saídas: 0
+        </p>
       </form>
     </div>
   )
