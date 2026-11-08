@@ -1,0 +1,75 @@
+name: Test and deploy
+
+# Every push to main runs the tests; if they pass, the server is updated.
+# Pull requests only run the tests.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: hotel
+          POSTGRES_USER: hotel
+          POSTGRES_PASSWORD: hotel
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hotel -d hotel"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DB_NAME: hotel
+      DB_USER: hotel
+      DB_PASSWORD: hotel
+      DB_HOST: localhost
+      DB_PORT: "5432"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
+      - run: python manage.py test
+        working-directory: backend
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+  deploy:
+    needs: [backend-tests, frontend-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: production # never run two deploys at once
+    steps:
+      - uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            cd ~/hotel
+            git pull --ff-only
+            docker compose --env-file .env.prod -f docker-compose.prod.yaml up -d --build
+            docker image prune -f
