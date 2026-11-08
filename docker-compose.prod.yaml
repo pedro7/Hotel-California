@@ -1,0 +1,62 @@
+# Production stack (single server): Caddy (HTTPS + React build) -> gunicorn (Django) -> Postgres.
+# Usage: docker compose --env-file .env.prod -f docker-compose.prod.yaml up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No "ports": the database is reachable only from inside the Compose network.
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn hotel.wsgi:application --bind 0.0.0.0:8000 --workers 3 --access-logfile -"
+    environment:
+      - DB_NAME=${POSTGRES_DB}
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_DEBUG=False
+      - DJANGO_HTTPS=True
+      - DJANGO_ALLOWED_HOSTS=${SITE_ADDRESS}
+      - DJANGO_CSRF_TRUSTED_ORIGINS=https://${SITE_ADDRESS}
+    depends_on:
+      db:
+        condition: service_healthy
+    # No "ports": only Caddy talks to it.
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      - SITE_ADDRESS=${SITE_ADDRESS}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data # certificates: keep this volume!
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

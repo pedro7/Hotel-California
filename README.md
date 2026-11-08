@@ -20,6 +20,7 @@ Aplicação para atendentes de hotel: login, cadastro e busca de hóspedes, rese
 8. [Estrutura do repositório](#8-estrutura-do-repositório)
 9. [Regras de negócio](#9-regras-de-negócio)
 10. [API](#10-api)
+11. [Deploy em produção (DigitalOcean)](#11-deploy-em-produção-digitalocean)
 
 ---
 
@@ -170,6 +171,9 @@ VITE_API_PROXY_TARGET=http://localhost:8000 npm run dev   # http://localhost:517
 | `DJANGO_SECRET_KEY` | `backend/.env.local` | chave insegura de desenvolvimento | chave secreta do Django (obrigatório trocar em produção) |
 | `DJANGO_DEBUG` | `backend/.env.local` | `False` | só o valor exato `True` ativa o modo debug |
 | `DJANGO_ALLOWED_HOSTS` | ambiente do backend | `localhost,127.0.0.1` | hosts aceitos, separados por vírgula |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | ambiente do backend | vazio | origens HTTPS confiáveis, separadas por vírgula (produção) |
+| `DJANGO_HTTPS` | ambiente do backend | `False` | `True` ativa cookies seguros, HSTS e confiança no `X-Forwarded-Proto` (produção, atrás do Caddy) |
+| `SITE_ADDRESS` | `.env.prod` | — | domínio público do site (produção) |
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD` | definidas pelo Compose a partir de `POSTGRES_*` | — | conexão do Django com o banco |
 | `DB_HOST`, `DB_PORT` | definidas pelo Compose | `db`, `5432` | endereço do Postgres (use `localhost` fora do Docker) |
 | `VITE_API_PROXY_TARGET` | ambiente do frontend | `http://backend:8000` | para onde o Vite repassa `/api` (use `http://localhost:8000` fora do Docker) |
@@ -273,3 +277,92 @@ Todas as rotas exigem sessão, exceto `csrf` e `login`. Requisições que altera
 | `GET /api/reservations/{id}/bill/` | conta detalhada (prévia, se o hóspede ainda está no hotel) |
 | `POST /api/reservations/{id}/check-out/` | check-out; devolve a reserva e a conta detalhada |
 | `POST /api/reservations/{id}/cancel/` | cancela uma reserva ainda não iniciada |
+
+## 11. Deploy em produção (DigitalOcean)
+
+Arquitetura: um único Droplet rodando `docker-compose.prod.yaml`.
+
+```
+Internet → Caddy (80/443, HTTPS automático) ─┬─ /api, /admin, /static → gunicorn (Django) → Postgres
+                                              └─ demais rotas          → build do React
+```
+
+Só as portas 80 e 443 ficam abertas; o banco e o Django não são acessíveis de fora. O navegador usa um único domínio, então cookies e CSRF funcionam sem CORS.
+
+### 11.1 Domínio (Registro.br)
+
+1. Registre um domínio em [registro.br](https://registro.br) (ex.: `hotel-cali.com.br`; exige CPF ou CNPJ).
+2. Depois de criar o Droplet (passo 11.2), abra o domínio no Registro.br → **DNS** → **Editar zona** e crie um registro **tipo A** (nome vazio, ou `@`, para o domínio raiz `hotel-cali.com.br`) apontando para o IP do Droplet.
+3. Aguarde a propagação (de minutos a algumas horas). Teste com `nslookup hotel-cali.com.br`.
+
+O valor completo (sem `https://`) vai em `SITE_ADDRESS` no `.env.prod`. O Caddy só consegue emitir o certificado quando o DNS já aponta para o servidor.
+
+### 11.2 Criar e preparar o servidor
+
+1. No painel da DigitalOcean: **Create → Droplet**, Ubuntu 24.04 LTS, plano de 1 vCPU / 2 GB de RAM (basta para este projeto), autenticação por **chave SSH**. Opcional: ative **Backups** do Droplet e reserve um **Reserved IP** (o IP não muda se recriar o servidor).
+2. Entre no servidor e instale o Docker:
+
+   ```bash
+   ssh root@IP_DO_DROPLET
+   curl -fsSL https://get.docker.com | sh
+   ```
+
+3. Firewall (mantenha o SSH liberado antes de ativar):
+
+   ```bash
+   ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+   ```
+
+### 11.3 Publicar a aplicação
+
+```bash
+git clone <url-do-repositorio> hotel && cd hotel
+cp .env.prod.example .env.prod
+nano .env.prod        # preencha SITE_ADDRESS, POSTGRES_PASSWORD e DJANGO_SECRET_KEY
+docker compose --env-file .env.prod -f docker-compose.prod.yaml up -d --build
+```
+
+Na inicialização o backend aplica as migrações e coleta os arquivos estáticos sozinho. Crie o primeiro atendente:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yaml exec backend python manage.py createsuperuser
+```
+
+Acesse `https://SEU_DOMINIO`. O painel administrativo (`/admin/`) fica no mesmo endereço.
+
+> Atalho: `export COMPOSE_FILE=docker-compose.prod.yaml COMPOSE_ENV_FILES=.env.prod` na sessão do servidor permite usar apenas `docker compose ...` nos comandos abaixo.
+
+### 11.4 Atualizar para uma nova versão
+
+```bash
+cd hotel && git pull
+docker compose --env-file .env.prod -f docker-compose.prod.yaml up -d --build
+```
+
+### 11.5 Backups
+
+Os dados dos hóspedes ficam no volume `postgres_data`. Faça cópias regulares:
+
+```bash
+./scripts/backup-db.sh                                  # gera backups/hotel-AAAAMMDD-HHMMSS.sql.gz
+crontab -e                                              # backup diário às 03h:
+# 0 3 * * * /root/hotel/scripts/backup-db.sh >> /root/hotel/backups/backup.log 2>&1
+```
+
+O script **não apaga** backups antigos; limpe a pasta `backups/` de tempos em tempos e copie os arquivos para fora do servidor (por exemplo, DigitalOcean Spaces ou seu computador com `scp`). Para restaurar:
+
+```bash
+gunzip -c backups/ARQUIVO.sql.gz | docker compose --env-file .env.prod -f docker-compose.prod.yaml exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
+```
+
+### 11.6 Problemas comuns em produção
+
+| Sintoma | Causa e solução |
+|---|---|
+| Navegador mostra erro de certificado | o DNS ainda não aponta para o servidor, ou as portas 80/443 estão bloqueadas. Veja `docker compose ... logs web`. |
+| `Bad Request (400)` | `SITE_ADDRESS` diferente do endereço usado no navegador. |
+| Login falha com 403 (CSRF) | acesso por `http://` ou por outro endereço que não o de `SITE_ADDRESS`. |
+| Variável `... is not set` ao subir | faltou `--env-file .env.prod` no comando. |
+| Perdeu o certificado ao recriar | não use `down -v`: ele apaga os volumes (banco **e** certificados). |
+
+Verificado localmente: a pilha sobe com `SITE_ADDRESS=localhost`, redireciona HTTP→HTTPS, serve o React e o `/admin`, e o fluxo de login funciona com cookie seguro. A emissão do certificado Let's Encrypt e o DNS só podem ser conferidos no servidor real.
