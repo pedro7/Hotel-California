@@ -20,7 +20,7 @@ export default function Modal({ title, onClose, children, footer, wide = false }
       >
         <div className="modal-header">
           <h2>{title}</h2>
-          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Fechar">
+          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Fechar janela">
             ✕
           </button>
         </div>

@@ -11,6 +11,8 @@ export default function Layout() {
     setLoggingOut(true)
     try {
       await logout()
+    } catch {
+      // The local session is dropped even if the request fails; nothing to show.
     } finally {
       navigate('/login', { replace: true })
     }
