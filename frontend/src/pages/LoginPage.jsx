@@ -40,9 +40,6 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="rain" aria-hidden="true" />
       <NeonSign />
-      <p className="lyric" aria-hidden="true">
-        “You can check out any time you like, but you can never leave.”
-      </p>
       <form className="card login-card" onSubmit={handleSubmit}>
         <div className="card-ribbon" aria-hidden="true">
           Front Desk · Recepção
@@ -80,9 +77,6 @@ export default function LoginPage() {
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Entrando…' : 'Entrar'}
         </button>
-        <p className="card-footnote" aria-hidden="true">
-          Hóspedes registrados: ∞ · Saídas: 0
-        </p>
       </form>
     </div>
   )

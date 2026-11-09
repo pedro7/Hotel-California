@@ -56,6 +56,22 @@ class ReservationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'check_in_date': 'A data de entrada não pode estar no passado.'}
             )
+
+        guest = attrs.get('guest', getattr(self.instance, 'guest', None))
+        if guest and check_in and check_out:
+            # Same-day turnover is fine: a stay ending on D doesn't clash with one starting on D.
+            clashes = Reservation.objects.filter(
+                guest=guest,
+                status__in=[Reservation.Status.RESERVED, Reservation.Status.CHECKED_IN],
+                check_in_date__lt=check_out,
+                check_out_date__gt=check_in,
+            )
+            if self.instance is not None:
+                clashes = clashes.exclude(pk=self.instance.pk)
+            if clashes.exists():
+                raise serializers.ValidationError(
+                    'Este hóspede já possui uma reserva ou hospedagem ativa neste período.'
+                )
         return attrs
 
 

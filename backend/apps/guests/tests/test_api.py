@@ -131,6 +131,33 @@ class UpdateGuestTests(GuestAPITestCase):
         self.assertEqual(response.status_code, 400)
 
 
+class OrderingGuestTests(GuestAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.make_guest('Carla', document='30000000000', phone='11900000003')
+        self.make_guest('Ana', document='20000000000', phone='11900000002')
+        self.make_guest('Bruno', document='10000000000', phone='11900000001')
+
+    def test_default_order_is_alphabetical(self):
+        self.assertEqual(self.names(), ['Ana', 'Bruno', 'Carla'])
+
+    def test_order_by_name(self):
+        self.assertEqual(self.names('?ordering=-name'), ['Carla', 'Bruno', 'Ana'])
+
+    def test_order_by_document(self):
+        self.assertEqual(self.names('?ordering=document'), ['Bruno', 'Ana', 'Carla'])
+        self.assertEqual(self.names('?ordering=-document'), ['Carla', 'Ana', 'Bruno'])
+
+    def test_order_by_phone(self):
+        self.assertEqual(self.names('?ordering=phone'), ['Bruno', 'Ana', 'Carla'])
+
+    def test_unknown_ordering_falls_back_to_the_default(self):
+        self.assertEqual(self.names('?ordering=created_at'), ['Ana', 'Bruno', 'Carla'])
+
+    def test_ordering_combines_with_search(self):
+        self.assertEqual(self.names('?search=a&ordering=-name'), ['Carla', 'Ana'])
+
+
 class SearchGuestTests(GuestAPITestCase):
     def setUp(self):
         super().setUp()

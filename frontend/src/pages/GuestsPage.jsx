@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { guestsApi } from '../api'
 import { errorMessage } from '../api/client'
 import Pagination from '../components/Pagination'
+import SortHeader, { nextOrdering } from '../components/SortHeader'
 import { useApiList } from '../hooks/useApiList'
 import { useDebounce } from '../hooks/useDebounce'
 import { formatDocument, formatPhone } from '../utils/format'
@@ -23,11 +24,18 @@ export default function GuestsPage() {
   const debouncedSearch = useDebounce(search.trim())
 
   const scopeParams = SCOPES.find((s) => s.key === scope).params
+  const [ordering, setOrdering] = useState('name') // default: alphabetical
   const { data, loading, error, reload } = useApiList(guestsApi.list, {
     search: debouncedSearch,
+    ordering,
     page,
     ...scopeParams,
   })
+
+  function sortBy(field) {
+    setOrdering((current) => nextOrdering(current, field))
+    setPage(1)
+  }
 
   function changeScope(key) {
     setScope(key)
@@ -87,9 +95,9 @@ export default function GuestsPage() {
         <table className="table">
           <thead>
             <tr>
-              <th>Nome</th>
-              <th>Documento</th>
-              <th>Telefone</th>
+              <SortHeader field="name" ordering={ordering} onSort={sortBy}>Nome</SortHeader>
+              <SortHeader field="document" ordering={ordering} onSort={sortBy}>Documento</SortHeader>
+              <SortHeader field="phone" ordering={ordering} onSort={sortBy}>Telefone</SortHeader>
               <th className="actions-col" />
             </tr>
           </thead>

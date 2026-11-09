@@ -124,6 +124,52 @@ class CreateReservationTests(ReservationAPITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('check_in_date', response.json())
 
+    def test_guest_cannot_have_overlapping_active_reservations(self):
+        self.make(check_in=SAT, check_out=MON)  # RESERVED, Sat -> Mon
+        for check_in, check_out in (
+            ('2026-11-07', '2026-11-08'),  # same nights
+            ('2026-11-08', '2026-11-10'),  # starts inside the stay
+            ('2026-11-06', '2026-11-08'),  # ends inside the stay
+        ):
+            with self.subTest(check_in=check_in, check_out=check_out):
+                with at(FRI, 10):
+                    response = self.client.post(
+                        '/api/reservations/',
+                        self.payload(check_in_date=check_in, check_out_date=check_out),
+                        format='json',
+                    )
+                self.assertEqual(response.status_code, 400)
+        self.assertEqual(Reservation.objects.count(), 1)
+
+    def test_back_to_back_stays_and_other_guests_are_allowed(self):
+        self.make(check_in=SAT, check_out=SUN)
+        with at(FRI, 10):
+            same_day_turnover = self.client.post(
+                '/api/reservations/',
+                self.payload(check_in_date='2026-11-08', check_out_date='2026-11-09'),
+                format='json',
+            )
+            other_guest = self.client.post(
+                '/api/reservations/', self.payload(guest=self.joao.pk), format='json'
+            )
+        self.assertEqual(same_day_turnover.status_code, 201)
+        self.assertEqual(other_guest.status_code, 201)
+
+    def test_canceled_or_finished_reservations_do_not_block(self):
+        self.make(status=Status.CANCELED)
+        self.make(status=Status.CHECKED_OUT)
+        with at(FRI, 10):
+            response = self.client.post('/api/reservations/', self.payload(), format='json')
+        self.assertEqual(response.status_code, 201)
+
+    def test_editing_a_reservation_does_not_clash_with_itself(self):
+        reservation = self.make(check_in=SAT, check_out=SUN)
+        with at(FRI, 10):
+            response = self.client.patch(
+                self.url(reservation), {'has_car': True}, format='json'
+            )
+        self.assertEqual(response.status_code, 200)
+
     def test_checkin_today_is_allowed(self):
         with at(SAT, 23, 0):
             response = self.client.post('/api/reservations/', self.payload(), format='json')
@@ -186,6 +232,44 @@ class ListReservationsTests(ReservationAPITestCase):
 
     def test_lists_everything_by_default(self):
         self.assertEqual(len(self.ids()), 4)
+
+    def ordered_ids(self, query=''):
+        response = self.client.get(f'/api/reservations/{query}')
+        self.assertEqual(response.status_code, 200)
+        return [item['id'] for item in response.json()['results']]
+
+    def test_default_order_is_id_descending(self):
+        expected = sorted(
+            (self.reserved.id, self.in_hotel.id, self.finished.id, self.canceled.id), reverse=True
+        )
+        self.assertEqual(self.ordered_ids(), expected)
+
+    def test_can_order_by_id_ascending(self):
+        self.assertEqual(self.ordered_ids('?ordering=id'), sorted(self.ordered_ids()))
+
+    def test_can_order_by_guest_name(self):
+        # "João Souza" sorts before "Maria Silva".
+        ids = self.ordered_ids('?ordering=guest')
+        self.assertEqual({ids[0], ids[1]}, {self.in_hotel.id, self.canceled.id})
+        ids = self.ordered_ids('?ordering=-guest')
+        self.assertEqual({ids[0], ids[1]}, {self.reserved.id, self.finished.id})
+
+    def test_can_order_by_status(self):
+        statuses = {r.id: r.status for r in Reservation.objects.all()}
+        asc = [statuses[i] for i in self.ordered_ids('?ordering=status')]
+        self.assertEqual(asc, sorted(asc))
+        desc = [statuses[i] for i in self.ordered_ids('?ordering=-status')]
+        self.assertEqual(desc, sorted(desc, reverse=True))
+
+    def test_can_order_by_dates_and_parking(self):
+        later = self.make(self.maria, check_in=SUN, check_out=MON, has_car=True)
+        self.assertEqual(self.ordered_ids('?ordering=-check_in_date')[0], later.id)
+        self.assertEqual(self.ordered_ids('?ordering=-check_out_date')[0], later.id)
+        self.assertEqual(self.ordered_ids('?ordering=-has_car')[0], later.id)
+        self.assertEqual(self.ordered_ids('?ordering=has_car')[-1], later.id)
+
+    def test_unknown_ordering_falls_back_to_the_default(self):
+        self.assertEqual(self.ordered_ids('?ordering=guest__document'), self.ordered_ids())
 
     def test_filter_awaiting_check_in(self):
         self.assertEqual(self.ids('?status=RESERVED'), {self.reserved.id})

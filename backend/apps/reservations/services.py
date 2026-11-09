@@ -3,6 +3,8 @@
 from django.db import transaction
 from django.utils import timezone
 
+from apps.guests.models import Guest
+
 from . import pricing
 from .models import Reservation
 
@@ -17,6 +19,12 @@ class ReservationError(Exception):
 
 class InvalidStatusTransition(ReservationError):
     code = 'invalid_status'
+
+
+class GuestAlreadyCheckedIn(ReservationError):
+    """The guest is still in the hotel under another reservation."""
+
+    code = 'guest_already_checked_in'
 
 
 class EarlyCheckInNotConfirmed(ReservationError):
@@ -43,6 +51,20 @@ def check_in(reservation_id, *, confirm_early=False, now=None) -> Reservation:
     if reservation.status != Reservation.Status.RESERVED:
         raise InvalidStatusTransition(
             'Só é possível fazer check-in de reservas com status "Reservada".'
+        )
+
+    # Lock the guest row so two simultaneous check-ins of the same guest can't both pass.
+    Guest.objects.select_for_update().get(pk=reservation.guest_id)
+    if (
+        Reservation.objects.filter(
+            guest_id=reservation.guest_id, status=Reservation.Status.CHECKED_IN
+        )
+        .exclude(pk=reservation.pk)
+        .exists()
+    ):
+        raise GuestAlreadyCheckedIn(
+            'Este hóspede já está com check-in realizado em outra reserva. '
+            'Faça o check-out antes de um novo check-in.'
         )
 
     if pricing.is_early_check_in(reservation.check_in_date, now) and not confirm_early:

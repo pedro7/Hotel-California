@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { guestsApi, reservationsApi } from '../api'
 import { ApiError } from '../api/client'
 import { makeGuest, makePage } from '../test/fixtures'
-import { todayIso } from '../utils/format'
+import { formatDate, todayIso } from '../utils/format'
 import ReservationFormModal from './ReservationFormModal'
 
 vi.mock('../api', () => ({
@@ -30,17 +30,26 @@ beforeEach(() => {
 describe('ReservationFormModal', () => {
   it('suggests today as check-in and tomorrow as check-out', () => {
     renderForm({ initialGuest: maria })
-    expect(screen.getByLabelText('Entrada')).toHaveValue(todayIso())
-    expect(screen.getByLabelText('Saída')).toHaveValue(todayIso(1))
+    expect(screen.getByLabelText('Entrada')).toHaveValue(formatDate(todayIso()))
+    expect(screen.getByLabelText('Saída')).toHaveValue(formatDate(todayIso(1)))
   })
 
-  it('does not allow picking a check-in in the past or a check-out before check-in', () => {
+  it('masks typed dates as dd/mm/aaaa', () => {
     renderForm({ initialGuest: maria })
-    expect(screen.getByLabelText('Entrada')).toHaveAttribute('min', todayIso())
-    expect(screen.getByLabelText('Saída')).toHaveAttribute('min', todayIso())
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '10122026' } })
+    expect(screen.getByLabelText('Entrada')).toHaveValue('10/12/2026')
+  })
 
-    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '2026-12-10' } })
-    expect(screen.getByLabelText('Saída')).toHaveAttribute('min', '2026-12-10')
+  it('rejects a check-in in the past and an invalid date without calling the API', async () => {
+    renderForm({ initialGuest: maria })
+
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '01/01/2020' } })
+    fireEvent.change(screen.getByLabelText('Saída'), { target: { value: '31/02/2030' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Criar reserva' }))
+
+    expect(await screen.findByText('A entrada não pode ser no passado.')).toBeInTheDocument()
+    expect(screen.getByText('Informe uma data válida (dd/mm/aaaa).')).toBeInTheDocument()
+    expect(reservationsApi.create).not.toHaveBeenCalled()
   })
 
   it('requires a guest', async () => {
@@ -79,16 +88,16 @@ describe('ReservationFormModal', () => {
     reservationsApi.create.mockResolvedValue({ id: 1 })
     const { onSaved } = renderForm({ initialGuest: maria })
 
-    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '2026-12-10' } })
-    fireEvent.change(screen.getByLabelText('Saída'), { target: { value: '2026-12-13' } })
+    fireEvent.change(screen.getByLabelText('Entrada'), { target: { value: '10/12/2030' } })
+    fireEvent.change(screen.getByLabelText('Saída'), { target: { value: '13/12/2030' } })
     await userEvent.click(screen.getByLabelText(/utilizará a vaga/))
     await userEvent.click(screen.getByRole('button', { name: 'Criar reserva' }))
 
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalled())
     expect(reservationsApi.create).toHaveBeenCalledWith({
       guest: 1,
-      check_in_date: '2026-12-10',
-      check_out_date: '2026-12-13',
+      check_in_date: '2030-12-10',
+      check_out_date: '2030-12-13',
       has_car: true,
     })
   })

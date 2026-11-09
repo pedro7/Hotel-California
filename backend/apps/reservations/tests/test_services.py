@@ -46,6 +46,22 @@ class CheckInTests(ServiceTestCase):
         reservation.refresh_from_db()
         self.assertEqual(reservation.status, Status.CHECKED_IN)
 
+    def test_guest_already_checked_in_cannot_check_in_again(self):
+        self.make_reservation(check_in=FRI, check_out=SUN, status=Status.CHECKED_IN)
+        second = self.make_reservation(check_in=SUN, check_out=MON)
+
+        with self.assertRaises(services.GuestAlreadyCheckedIn):
+            services.check_in(second.pk, now=at(SUN, 15))
+
+        second.refresh_from_db()
+        self.assertEqual(second.status, Status.RESERVED)
+
+    def test_guest_can_check_in_again_after_checking_out(self):
+        self.make_reservation(check_in=FRI, check_out=SAT, status=Status.CHECKED_OUT)
+        second = self.make_reservation(check_in=SAT, check_out=SUN)
+        result = services.check_in(second.pk, now=at(SAT, 15))
+        self.assertEqual(result.status, Status.CHECKED_IN)
+
     def test_check_in_at_exactly_14h_is_allowed_without_confirmation(self):
         reservation = self.make_reservation()
         result = services.check_in(reservation.pk, now=at(SAT, 14, 0))

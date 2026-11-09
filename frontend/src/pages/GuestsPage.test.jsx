@@ -64,7 +64,29 @@ describe('finding guests', () => {
   it('starts without filters', async () => {
     renderPage()
     await screen.findByText('Maria Silva')
-    expect(guestsApi.list).toHaveBeenCalledWith({ search: '', page: 1 }, expect.anything())
+    expect(guestsApi.list).toHaveBeenCalledWith({ search: '', ordering: 'name', page: 1 }, expect.anything())
+  })
+
+  it('sorts by a column when its header is clicked, toggling the direction', async () => {
+    renderPage()
+    await screen.findByText('Maria Silva')
+
+    // "Nome" is the default (ascending), so the first click flips it to descending.
+    await userEvent.click(screen.getByRole('button', { name: /Nome/ }))
+    await waitFor(() =>
+      expect(guestsApi.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ordering: '-name', page: 1 }),
+        expect.anything(),
+      ),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /Telefone/ }))
+    await waitFor(() =>
+      expect(guestsApi.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ordering: 'phone' }),
+        expect.anything(),
+      ),
+    )
   })
 
   it('searches by name, document or phone', async () => {
@@ -128,7 +150,7 @@ describe('finding guests', () => {
 
     await waitFor(() =>
       expect(guestsApi.list).toHaveBeenLastCalledWith(
-        { search: '', page: 1 },
+        { search: '', ordering: 'name', page: 1 },
         expect.anything(),
       ),
     )

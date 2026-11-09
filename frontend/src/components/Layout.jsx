@@ -46,11 +46,11 @@ export default function Layout() {
         <Outlet />
       </main>
       <footer className="motel-footer" aria-hidden="true">
-        <span>Color TV</span>
+        <span>TV a Cores</span>
         <span>✦</span>
-        <span>Air Conditioned</span>
+        <span>Ar-Condicionado</span>
         <span>✦</span>
-        <span>Open 24 h</span>
+        <span>Aberto 24h</span>
       </footer>
     </div>
   )

@@ -19,6 +19,27 @@ export function formatDate(iso) {
   return `${day}/${month}/${year}`
 }
 
+/** Keeps only digits and inserts the slashes while typing: "0711" -> "07/11" */
+export function maskDate(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+/** "07/11/2026" -> "2026-11-07"; returns '' when incomplete or not a real date. */
+export function parseBrDate(text) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text)
+  if (!match) return ''
+  const [, day, month, year] = match
+  const date = new Date(Number(year), Number(month) - 1, Number(day))
+  const real =
+    date.getFullYear() === Number(year) &&
+    date.getMonth() === Number(month) - 1 &&
+    date.getDate() === Number(day)
+  return real ? `${year}-${month}-${day}` : ''
+}
+
 /** "2026-11-07" -> "sáb" */
 export function weekdayName(iso) {
   return WEEKDAYS[parseIsoDate(iso).getDay()]

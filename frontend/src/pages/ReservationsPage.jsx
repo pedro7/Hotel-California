@@ -4,6 +4,7 @@ import { reservationsApi } from '../api'
 import { ApiError, errorMessage } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import Pagination from '../components/Pagination'
+import SortHeader, { nextOrdering } from '../components/SortHeader'
 import StatusBadge from '../components/StatusBadge'
 import { useApiList } from '../hooks/useApiList'
 import { useDebounce } from '../hooks/useDebounce'
@@ -35,12 +36,20 @@ export default function ReservationsPage() {
   const [billModal, setBillModal] = useState(null) // { reservation, readOnly }
   const [busy, setBusy] = useState(false)
 
+  const [ordering, setOrdering] = useState('-id') // default: newest first
+
   const debouncedSearch = useDebounce(search.trim())
   const { data, loading, error, reload } = useApiList(reservationsApi.list, {
     status,
     search: debouncedSearch,
+    ordering,
     page,
   })
+
+  function sortBy(field) {
+    setOrdering((current) => nextOrdering(current, field))
+    setPage(1)
+  }
 
   // The "Nova reserva" shortcut from the guests page passes the guest via router
   // state; consume it so a page refresh doesn't reopen the modal.
@@ -154,12 +163,12 @@ export default function ReservationsPage() {
         <table className="table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Hóspede</th>
-              <th>Entrada</th>
-              <th>Saída</th>
-              <th>Vaga</th>
-              <th>Status</th>
+              <SortHeader field="id" ordering={ordering} onSort={sortBy}>#</SortHeader>
+              <SortHeader field="guest" ordering={ordering} onSort={sortBy}>Hóspede</SortHeader>
+              <SortHeader field="check_in_date" ordering={ordering} onSort={sortBy}>Entrada</SortHeader>
+              <SortHeader field="check_out_date" ordering={ordering} onSort={sortBy}>Saída</SortHeader>
+              <SortHeader field="has_car" ordering={ordering} onSort={sortBy}>Vaga</SortHeader>
+              <SortHeader field="status" ordering={ordering} onSort={sortBy}>Status</SortHeader>
               <th className="actions-col" />
             </tr>
           </thead>

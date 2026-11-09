@@ -24,9 +24,29 @@ class ReservationViewSet(
         ``status=RESERVED`` = reservations awaiting check-in.
       - ``guest``: guest id
       - ``name``, ``document``, ``phone``, ``search``: guest lookup (see guests)
+      - ``ordering``: one of id, guest, check_in_date, check_out_date, has_car, status;
+        prefix with ``-`` for descending. Default: ``-id`` (newest first).
     """
 
     serializer_class = ReservationSerializer
+
+    ORDERING_FIELDS = {
+        'id': 'id',
+        'guest': 'guest__name',
+        'check_in_date': 'check_in_date',
+        'check_out_date': 'check_out_date',
+        'has_car': 'has_car',
+        'status': 'status',
+    }
+
+    def _ordering(self):
+        requested = self.request.query_params.get('ordering', '')
+        descending = requested.startswith('-')
+        field = self.ORDERING_FIELDS.get(requested.lstrip('-'))
+        if field is None:
+            return ['-id']
+        order = [f'-{field}' if descending else field]
+        return order if field == 'id' else order + ['-id']  # stable tiebreaker
 
     def get_queryset(self):
         params = self.request.query_params
@@ -46,7 +66,7 @@ class ReservationViewSet(
                 phone=params.get('phone'),
                 term=params.get('search'),
             )
-        )
+        ).order_by(*self._ordering())
 
     @staticmethod
     def _error(exc):

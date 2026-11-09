@@ -28,9 +28,19 @@ class GuestViewSet(
       - ``search``: free text matched against name OR document OR phone
       - ``in_hotel=true``: guests currently checked in
       - ``awaiting_check_in=true``: guests with a reservation not yet checked in
+      - ``ordering``: one of name, document, phone; prefix with ``-`` for descending.
+        Default: ``name``.
     """
 
     serializer_class = GuestSerializer
+
+    ORDERING_FIELDS = {'name', 'document', 'phone'}
+
+    def _ordering(self):
+        requested = self.request.query_params.get('ordering', '')
+        if requested.lstrip('-') not in self.ORDERING_FIELDS:
+            return ['name', 'id']
+        return [requested, 'id']  # id as a stable tiebreaker
 
     def get_queryset(self):
         params = self.request.query_params
@@ -61,4 +71,4 @@ class GuestViewSet(
                     )
                 )
             )
-        return qs
+        return qs.order_by(*self._ordering())

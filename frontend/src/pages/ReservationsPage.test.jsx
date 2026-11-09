@@ -110,8 +110,29 @@ describe('finding reservations', () => {
     renderPage()
     await screen.findByText('João Souza')
     expect(reservationsApi.list).toHaveBeenCalledWith(
-      { status: '', search: '', page: 1 },
+      { status: '', search: '', ordering: '-id', page: 1 },
       expect.anything(),
+    )
+  })
+
+  it('sorts by a column when its header is clicked, toggling the direction', async () => {
+    renderPage()
+    await screen.findByText('João Souza')
+
+    await userEvent.click(screen.getByRole('button', { name: /Entrada/ }))
+    await waitFor(() =>
+      expect(reservationsApi.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ordering: 'check_in_date', page: 1 }),
+        expect.anything(),
+      ),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /Entrada/ }))
+    await waitFor(() =>
+      expect(reservationsApi.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ordering: '-check_in_date' }),
+        expect.anything(),
+      ),
     )
   })
 

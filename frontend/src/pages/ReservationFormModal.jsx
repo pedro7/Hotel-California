@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { reservationsApi } from '../api'
 import { fieldError, formError } from '../api/client'
+import DateInput from '../components/DateInput'
 import GuestPicker from '../components/GuestPicker'
 import Modal from '../components/Modal'
 import { todayIso } from '../utils/format'
@@ -10,6 +11,7 @@ export default function ReservationFormModal({ initialGuest, onClose, onSaved })
   const [checkIn, setCheckIn] = useState(todayIso())
   const [checkOut, setCheckOut] = useState(todayIso(1))
   const [hasCar, setHasCar] = useState(false)
+  const [dateErrors, setDateErrors] = useState({})
   const [error, setError] = useState(null)
   const [missingGuest, setMissingGuest] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -20,6 +22,15 @@ export default function ReservationFormModal({ initialGuest, onClose, onSaved })
       setMissingGuest(true)
       return
     }
+    const invalid = {}
+    if (!checkIn) invalid.check_in_date = 'Informe uma data válida (dd/mm/aaaa).'
+    else if (checkIn < todayIso()) invalid.check_in_date = 'A entrada não pode ser no passado.'
+    if (!checkOut) invalid.check_out_date = 'Informe uma data válida (dd/mm/aaaa).'
+    else if (checkIn && checkOut <= checkIn)
+      invalid.check_out_date = 'A data de saída deve ser posterior à data de entrada.'
+    setDateErrors(invalid)
+    if (Object.keys(invalid).length > 0) return
+
     setError(null)
     setSubmitting(true)
     try {
@@ -56,28 +67,20 @@ export default function ReservationFormModal({ initialGuest, onClose, onSaved })
         <div className="form-row">
           <label>
             Entrada
-            <input
-              type="date"
-              value={checkIn}
-              min={todayIso()}
-              onChange={(event) => setCheckIn(event.target.value)}
-              required
-            />
-            {fieldError(error, 'check_in_date') && (
-              <span className="field-error">{fieldError(error, 'check_in_date')}</span>
+            <DateInput value={checkIn} min={todayIso()} onChange={setCheckIn} required />
+            {(dateErrors.check_in_date || fieldError(error, 'check_in_date')) && (
+              <span className="field-error">
+                {dateErrors.check_in_date || fieldError(error, 'check_in_date')}
+              </span>
             )}
           </label>
           <label>
             Saída
-            <input
-              type="date"
-              value={checkOut}
-              min={checkIn}
-              onChange={(event) => setCheckOut(event.target.value)}
-              required
-            />
-            {fieldError(error, 'check_out_date') && (
-              <span className="field-error">{fieldError(error, 'check_out_date')}</span>
+            <DateInput value={checkOut} min={checkIn || todayIso()} onChange={setCheckOut} required />
+            {(dateErrors.check_out_date || fieldError(error, 'check_out_date')) && (
+              <span className="field-error">
+                {dateErrors.check_out_date || fieldError(error, 'check_out_date')}
+              </span>
             )}
           </label>
         </div>
