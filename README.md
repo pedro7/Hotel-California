@@ -2,6 +2,8 @@
 
 Sistema de gestão de hóspedes e reservas para atendentes de hotel.
 
+**Em produção:** [hotel-cali.com.br](https://hotel-cali.com.br)
+
 **Funcionalidades:** login de atendentes, cadastro e busca de hóspedes, reservas (com bloqueio de períodos sobrepostos), check-in (com alerta antes das 14h), check-out com conta detalhada e cancelamento. As listas têm paginação e ordenação por coluna.
 
 **Regras de preço:** diária de R$ 120 (seg–sex) ou R$ 180 (sáb–dom); vaga de carro de R$ 15 ou R$ 20 por noite; check-out até 12h, e depois disso taxa de 50% da diária.
@@ -57,7 +59,7 @@ Os testes end-to-end cobrem login, layout das grades, paginação, ordenação, 
 
 ## Deploy e CI/CD
 
-A aplicação está em produção em um Droplet da DigitalOcean, rodando `docker-compose.prod.yaml`: o Caddy faz o HTTPS automático e serve o build do React, e repassa `/api` e `/admin` para o Django (Gunicorn), que usa o PostgreSQL.
+A aplicação está em produção em [hotel-cali.com.br](https://hotel-cali.com.br), hospedada em um Droplet da DigitalOcean, rodando `docker-compose.prod.yaml`: o Caddy faz o HTTPS automático e serve o build do React, e repassa `/api` e `/admin` para o Django (Gunicorn), que usa o PostgreSQL.
 
 O pipeline do GitHub Actions (`.github/workflows/deploy.yml`) roda a cada push:
 
