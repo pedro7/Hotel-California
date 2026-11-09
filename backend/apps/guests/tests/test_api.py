@@ -186,6 +186,11 @@ class SearchGuestTests(GuestAPITestCase):
         self.assertEqual(self.names('?search=55566677788'), ['Mariana Costa'])
         self.assertEqual(self.names('?search=(11) 91234'), ['Maria Silva'])
 
+    def test_digits_inside_a_name_do_not_match_phones(self):
+        # "Silva 77" used to be reduced to the digits "77" and match João's phone (…7777).
+        self.assertEqual(self.names('?search=Silva 77'), [])
+        self.assertEqual(self.names('?search=Maria Silva'), ['Maria Silva'])
+
     def test_specific_filters_combine_with_and(self):
         self.assertEqual(self.names('?name=mari&phone=3197'), ['Mariana Costa'])
         self.assertEqual(self.names('?name=joão&phone=3197'), [])

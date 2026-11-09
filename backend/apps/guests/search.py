@@ -1,6 +1,10 @@
+import re
+
 from django.db.models import Q
 
 from .normalization import normalize_document, normalize_phone
+
+PHONE_LIKE = re.compile(r'^[\d\s()+.\-]+$')  # digits and the usual phone punctuation only
 
 
 def guest_search_q(prefix='', *, name=None, document=None, phone=None, term=None):
@@ -24,7 +28,9 @@ def guest_search_q(prefix='', *, name=None, document=None, phone=None, term=None
         document_term = normalize_document(term)
         if document_term:
             term_q |= Q(**{f'{prefix}document__icontains': document_term})
-        phone_term = normalize_phone(term)
+        # Only treat the term as a phone number when it looks like one; otherwise a name like
+        # "Ana 01" would be reduced to "01" and match every phone containing it.
+        phone_term = normalize_phone(term) if PHONE_LIKE.match(term) else ''
         if phone_term:
             term_q |= Q(**{f'{prefix}phone__icontains': phone_term})
         q &= term_q

@@ -217,6 +217,16 @@ O que os testes cobrem:
 | Hóspedes | `backend/apps/guests/tests/` | cadastro, documento único, busca por nome/documento/telefone, "no hotel" e "aguardando check-in" |
 | Login | `backend/apps/accounts/tests/` | sessão, CSRF, limite de tentativas |
 | Frontend | `frontend/src/**/*.test.*` | formatação, cliente da API, login e rotas protegidas, listas e filtros, check-in (com alerta), check-out (com conta), cadastro de hóspede e reserva |
+| End-to-end | `e2e/tests/` | navegador real (Playwright): login, layout da grade (sem rolagem da página, rolagem interna, cabeçalho fixo, sem espaço em branco), paginação, ordenação por coluna, datas dd/mm/aaaa, reserva sobreposta, check-in, check-out e cancelamento |
+
+Testes end-to-end (um navegador real usa o app como um atendente; stack isolado, com banco descartável e sem tocar nos seus dados):
+
+```bash
+docker compose -f docker-compose.e2e.yaml up --build --abort-on-container-exit --exit-code-from e2e
+docker compose -f docker-compose.e2e.yaml down -v
+```
+
+Prints e traces das falhas ficam em `e2e/test-results`. Para popular o banco de desenvolvimento com dados de exemplo (55 hóspedes, 3 páginas de cada lista): `docker compose exec backend python manage.py seed_demo`.
 
 ## 7. Solução de problemas
 

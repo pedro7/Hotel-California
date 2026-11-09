@@ -56,8 +56,21 @@ jobs:
       - run: npm run build
         working-directory: frontend
 
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f docker-compose.e2e.yaml up --build --abort-on-container-exit --exit-code-from e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-report
+          path: |
+            e2e/test-results
+            e2e/playwright-report
+
   deploy:
-    needs: [backend-tests, frontend-tests]
+    needs: [backend-tests, frontend-tests, e2e-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency: production # never run two deploys at once

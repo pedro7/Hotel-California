@@ -12,6 +12,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
+    allowedHosts: ['frontend'], // the e2e browser container reaches Vite as http://frontend:5173
     port: 5173,
     watch: {
       usePolling: true,
