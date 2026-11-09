@@ -1,7 +1,9 @@
+import re
+
 from rest_framework import serializers
 
 from .models import Guest
-from .normalization import normalize_document, normalize_phone
+from .normalization import is_valid_cpf, normalize_document, normalize_phone
 
 
 class GuestSerializer(serializers.ModelSerializer):
@@ -23,6 +25,9 @@ class GuestSerializer(serializers.ModelSerializer):
         value = normalize_document(value)
         if len(value) < 5:
             raise serializers.ValidationError('Documento inválido.')
+        # 11 digits = CPF: check the verification digits. Other documents (RG, passport) are free-form.
+        if re.fullmatch(r'\d{11}', value) and not is_valid_cpf(value):
+            raise serializers.ValidationError('CPF inválido.')
         duplicates = Guest.objects.filter(document=value)
         if self.instance is not None:
             duplicates = duplicates.exclude(pk=self.instance.pk)

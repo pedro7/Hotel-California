@@ -19,7 +19,7 @@ class GuestAPITestCase(APITestCase):
     def setUp(self):
         self.client.force_authenticate(self.user)
 
-    def make_guest(self, name='Maria Silva', document='12345678900', phone='11912345678'):
+    def make_guest(self, name='Maria Silva', document='52998224725', phone='11912345678'):
         return Guest.objects.create(name=name, document=document, phone=phone)
 
     def reserve(self, guest, status=Status.RESERVED):
@@ -48,7 +48,7 @@ class AccessTests(GuestAPITestCase):
 
 
 class CreateGuestTests(GuestAPITestCase):
-    payload = {'name': 'Maria Silva', 'document': '123.456.789-00', 'phone': '(11) 91234-5678'}
+    payload = {'name': 'Maria Silva', 'document': '529.982.247-25', 'phone': '(11) 91234-5678'}
 
     def test_guest_is_persisted_with_the_minimum_information(self):
         response = self.client.post('/api/guests/', self.payload, format='json')
@@ -56,12 +56,12 @@ class CreateGuestTests(GuestAPITestCase):
         self.assertEqual(response.status_code, 201)
         guest = Guest.objects.get()
         self.assertEqual(guest.name, 'Maria Silva')
-        self.assertEqual(guest.document, '12345678900')
+        self.assertEqual(guest.document, '52998224725')
         self.assertEqual(guest.phone, '11912345678')
 
     def test_document_and_phone_are_stored_normalized(self):
         body = self.client.post('/api/guests/', self.payload, format='json').json()
-        self.assertEqual(body['document'], '12345678900')
+        self.assertEqual(body['document'], '52998224725')
         self.assertEqual(body['phone'], '11912345678')
 
     def test_name_is_trimmed(self):
@@ -82,20 +82,57 @@ class CreateGuestTests(GuestAPITestCase):
         self.assertIn('name', response.json())
 
     def test_duplicate_document_is_rejected(self):
-        self.make_guest(document='12345678900')
+        self.make_guest(document='52998224725')
         response = self.client.post('/api/guests/', self.payload, format='json')
         self.assertEqual(response.status_code, 400)
         self.assertIn('document', response.json())
         self.assertEqual(Guest.objects.count(), 1)
 
     def test_duplicate_is_detected_regardless_of_formatting(self):
-        self.make_guest(document='12345678900')
-        for variant in ('123.456.789-00', '123 456 789 00', '12345678900'):
+        self.make_guest(document='52998224725')
+        for variant in ('529.982.247-25', '529 982 247 25', '52998224725'):
             with self.subTest(variant=variant):
                 response = self.client.post(
                     '/api/guests/', {**self.payload, 'document': variant}, format='json'
                 )
                 self.assertEqual(response.status_code, 400)
+
+    def test_invalid_cpf_is_rejected(self):
+        for cpf in ('123.456.789-00', '529.982.247-26', '111.111.111-11', '00000000000'):
+            with self.subTest(cpf=cpf):
+                response = self.client.post(
+                    '/api/guests/', {**self.payload, 'document': cpf}, format='json'
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['document'], ['CPF inválido.'])
+        self.assertEqual(Guest.objects.count(), 0)
+
+    def test_valid_cpf_is_accepted_with_or_without_formatting(self):
+        for cpf in ('529.982.247-25', '11144477735'):
+            with self.subTest(cpf=cpf):
+                response = self.client.post(
+                    '/api/guests/', {**self.payload, 'document': cpf}, format='json'
+                )
+                self.assertEqual(response.status_code, 201)
+
+    def test_other_documents_are_not_checked_as_cpf(self):
+        # RG (9 digits) and passports (letters) are accepted as typed.
+        for document in ('123456789', 'AB123456', '98.765.432-1'):
+            with self.subTest(document=document):
+                response = self.client.post(
+                    '/api/guests/',
+                    {**self.payload, 'document': document, 'name': f'Doc {document}'},
+                    format='json',
+                )
+                self.assertEqual(response.status_code, 201)
+
+    def test_editing_to_an_invalid_cpf_is_rejected(self):
+        guest = self.make_guest(document='52998224725')
+        response = self.client.patch(
+            f'/api/guests/{guest.pk}/', {'document': '123.456.789-00'}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['document'], ['CPF inválido.'])
 
     def test_too_short_document_is_rejected(self):
         response = self.client.post('/api/guests/', {**self.payload, 'document': '12.3'}, format='json')
@@ -118,16 +155,16 @@ class UpdateGuestTests(GuestAPITestCase):
         self.assertEqual(guest.phone, '21988887777')
 
     def test_keeping_the_same_document_is_not_a_duplicate(self):
-        guest = self.make_guest(document='12345678900')
+        guest = self.make_guest(document='52998224725')
         response = self.client.patch(
-            f'/api/guests/{guest.pk}/', {'document': '123.456.789-00', 'name': 'Maria S.'}, format='json'
+            f'/api/guests/{guest.pk}/', {'document': '529.982.247-25', 'name': 'Maria S.'}, format='json'
         )
         self.assertEqual(response.status_code, 200)
 
     def test_cannot_take_another_guests_document(self):
-        self.make_guest(document='11111111111')
+        self.make_guest(document='11144477735')
         other = self.make_guest(name='João', document='22222222222')
-        response = self.client.patch(f'/api/guests/{other.pk}/', {'document': '111.111.111-11'}, format='json')
+        response = self.client.patch(f'/api/guests/{other.pk}/', {'document': '111.444.777-35'}, format='json')
         self.assertEqual(response.status_code, 400)
 
 
@@ -161,7 +198,7 @@ class OrderingGuestTests(GuestAPITestCase):
 class SearchGuestTests(GuestAPITestCase):
     def setUp(self):
         super().setUp()
-        self.make_guest('Maria Silva', '12345678900', '11912345678')
+        self.make_guest('Maria Silva', '52998224725', '11912345678')
         self.make_guest('João Souza', '98765432100', '21988887777')
         self.make_guest('Mariana Costa', '55566677788', '31977776666')
 
@@ -170,7 +207,7 @@ class SearchGuestTests(GuestAPITestCase):
         self.assertEqual(self.names('?name=SOUZA'), ['João Souza'])
 
     def test_search_by_document_accepts_formatted_input(self):
-        self.assertEqual(self.names('?document=123.456.789-00'), ['Maria Silva'])
+        self.assertEqual(self.names('?document=529.982.247-25'), ['Maria Silva'])
 
     def test_search_by_partial_document(self):
         self.assertEqual(self.names('?document=9876'), ['João Souza'])
@@ -207,7 +244,7 @@ class PresenceFilterTests(GuestAPITestCase):
 
     def setUp(self):
         super().setUp()
-        self.in_hotel = self.make_guest('No Hotel', '11111111111', '11911111111')
+        self.in_hotel = self.make_guest('No Hotel', '11144477735', '11911111111')
         self.waiting = self.make_guest('Aguardando', '22222222222', '11922222222')
         self.gone = self.make_guest('Já Saiu', '33333333333', '11933333333')
         self.canceled = self.make_guest('Cancelou', '44444444444', '11944444444')

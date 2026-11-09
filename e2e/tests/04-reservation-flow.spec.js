@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { brDate } from './helpers.js'
 
 // Creates data (a new guest and its reservations), so this file runs last.
-const GUEST = { name: 'Teste E2E Silva', document: '88877766655', phone: '11955554444' }
+const GUEST = { name: 'Teste E2E Silva', document: '52998224725', phone: '11955554444' }
 
 async function searchReservations(page, term) {
   await page.goto('/reservations')
@@ -42,6 +42,23 @@ async function confirmEarlyCheckInIfAsked(page) {
 
 test.describe.configure({ mode: 'serial' })
 
+test('recusa CPF inválido e aceita o corrigido', async ({ page }) => {
+  await page.goto('/guests')
+  await page.getByRole('button', { name: '+ Novo hóspede' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Novo hóspede' })
+  await dialog.getByLabel('Nome').fill('Pessoa CPF Teste')
+  await dialog.getByLabel('Telefone').fill('11933334444')
+
+  await dialog.getByLabel('Documento').fill('123.456.789-00')
+  await dialog.getByRole('button', { name: 'Salvar' }).click()
+  await expect(dialog.getByText('CPF inválido.')).toBeVisible()
+
+  // a passport-like document is not treated as a CPF
+  await dialog.getByLabel('Documento').fill('AB123456')
+  await dialog.getByRole('button', { name: 'Salvar' }).click()
+  await expect(dialog).toBeHidden()
+})
+
 test('cadastra um hóspede', async ({ page }) => {
   await page.goto('/guests')
   await page.getByRole('button', { name: '+ Novo hóspede' }).click()
@@ -54,7 +71,7 @@ test('cadastra um hóspede', async ({ page }) => {
 
   await page.getByPlaceholder(/Buscar por nome/).fill(GUEST.name)
   await expect(page.locator('tbody tr')).toHaveCount(1)
-  await expect(page.getByText('888.777.666-55')).toBeVisible()
+  await expect(page.getByText('529.982.247-25')).toBeVisible()
 })
 
 test('não permite cadastrar o mesmo documento duas vezes', async ({ page }) => {
@@ -62,7 +79,7 @@ test('não permite cadastrar o mesmo documento duas vezes', async ({ page }) => 
   await page.getByRole('button', { name: '+ Novo hóspede' }).click()
   const dialog = page.getByRole('dialog', { name: 'Novo hóspede' })
   await dialog.getByLabel('Nome').fill('Outra Pessoa')
-  await dialog.getByLabel('Documento').fill('888.777.666-55')
+  await dialog.getByLabel('Documento').fill('529.982.247-25')
   await dialog.getByLabel('Telefone').fill('11911112222')
   await dialog.getByRole('button', { name: 'Salvar' }).click()
   await expect(dialog.getByText('Já existe um hóspede com este documento.')).toBeVisible()
