@@ -113,7 +113,7 @@ export default function ReservationsPage() {
   const reservations = data?.results ?? []
 
   return (
-    <section>
+    <section className="page">
       <div className="page-header">
         <div>
           <span className="page-kicker" aria-hidden="true">

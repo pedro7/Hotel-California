@@ -50,7 +50,7 @@ export default function GuestsPage() {
   const guests = data?.results ?? []
 
   return (
-    <section>
+    <section className="page">
       <div className="page-header">
         <div>
           <span className="page-kicker" aria-hidden="true">
